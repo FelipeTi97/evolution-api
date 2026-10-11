@@ -405,12 +405,17 @@ export class BaileysStartupService extends ChannelStartupService {
         }
       });
 
-      qrcodeTerminal.generate(qr, { small: true }, (qrcode) =>
-        this.logger.log(
-          `\n{ instance: ${this.instance.name} pairingCode: ${this.instance.qrcode.pairingCode}, qrcodeCount: ${this.instance.qrcode.count} }\n` +
-            qrcode,
-        ),
-      );
+      if (this.phoneNumber) {
+        this.logger.info(
+          `WhatsApp pairing code ready | instance=${this.instance.name} | phoneDigits=${this.phoneNumber.replace(/\D/g, '').length}`,
+        );
+      } else {
+        qrcodeTerminal.generate(qr, { small: true }, (qrcode) =>
+          this.logger.log(
+            `\n{ instance: ${this.instance.name} qrcodeCount: ${this.instance.qrcode.count} }\n${qrcode}`,
+          ),
+        );
+      }
 
       await this.prismaRepository.instance.update({
         where: { id: this.instanceId },
@@ -429,6 +434,13 @@ export class BaileysStartupService extends ChannelStartupService {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
       const codesToNotReconnect = [DisconnectReason.loggedOut, DisconnectReason.forbidden, 402, 406];
       const shouldReconnect = !codesToNotReconnect.includes(statusCode);
+      const disconnectMessage = String((lastDisconnect?.error as Boom)?.message || 'unknown')
+        .replace(/\d{7,}/g, '[redacted]')
+        .replace(/\s+/g, ' ')
+        .slice(0, 200);
+      this.logger.warn(
+        `WhatsApp connection closed | instance=${this.instance.name} | statusCode=${statusCode ?? 'unknown'} | reconnect=${shouldReconnect} | phoneDigits=${this.phoneNumber?.replace(/\D/g, '').length ?? 0} | reason=${disconnectMessage}`,
+      );
       if (shouldReconnect) {
         await this.connectToWhatsapp(this.phoneNumber);
       } else {
@@ -474,7 +486,10 @@ export class BaileysStartupService extends ChannelStartupService {
       } catch {
         this.instance.profilePictureUrl = null;
       }
-      const formattedWuid = this.instance.wuid.split('@')[0].padEnd(30, ' ');
+      const formattedWuid = this.instance.wuid
+        .split('@')[0]
+        .replace(/\d(?=\d{4})/g, '*')
+        .padEnd(30, ' ');
       const formattedName = this.instance.name;
       this.logger.info(
         `
@@ -583,9 +598,8 @@ export class BaileysStartupService extends ChannelStartupService {
     let browserOptions = {};
 
     if (number || this.phoneNumber) {
-      this.phoneNumber = number;
-
-      this.logger.info(`Phone number: ${number}`);
+      this.phoneNumber = number || this.phoneNumber;
+      this.logger.info(`Phone number configured for pairing | digits=${this.phoneNumber.replace(/\D/g, '').length}`);
     } else {
       const browser: WABrowserDescription = [session.CLIENT, session.NAME, release()];
       browserOptions = { browser };
@@ -759,7 +773,19 @@ export class BaileysStartupService extends ChannelStartupService {
     try {
       const pairingCode = await request;
       this.instance.qrcode.pairingCode = pairingCode;
+      this.logger.info(
+        `WhatsApp pairing code generated | instance=${this.instance.name} | phoneDigits=${phoneNumber.length}`,
+      );
       return pairingCode;
+    } catch (error) {
+      const errorMessage = (error instanceof Error ? error.message : String(error))
+        .replace(/\d{7,}/g, '[redacted]')
+        .replace(/\s+/g, ' ')
+        .slice(0, 200);
+      this.logger.warn(
+        `WhatsApp pairing code request failed | instance=${this.instance.name} | phoneDigits=${phoneNumber.length} | reason=${errorMessage}`,
+      );
+      throw error;
     } finally {
       if (this.pairingCodeRequest?.promise === request) {
         this.pairingCodeRequest = null;
@@ -779,16 +805,27 @@ export class BaileysStartupService extends ChannelStartupService {
     }
 
     const needsConnection = this.connectionStatus.state === 'close';
+    const pendingPairingRequest = this.pairingCodeRequest;
+    if (pendingPairingRequest && pendingPairingRequest.phoneNumber !== phoneNumber) {
+      throw new BadRequestException('Another pairing code request is already in progress');
+    }
+    const samePhoneRequestPending = pendingPairingRequest?.phoneNumber === phoneNumber;
     if (needsConnection || this.phoneNumber !== phoneNumber) {
       this.phoneNumber = phoneNumber;
       this.instance.qrcode.pairingCode = null;
+    } else if (!samePhoneRequestPending) {
+      this.instance.qrcode.pairingCode = null;
     }
+
+    this.logger.info(
+      `WhatsApp pairing requested | instance=${this.instance.name} | state=${this.connectionStatus.state} | phoneDigits=${phoneNumber.length} | freshCode=${!samePhoneRequestPending}`,
+    );
 
     if (needsConnection) {
       this.instance.qrcode.code = undefined;
       this.instance.qrcode.base64 = undefined;
       await this.connectToWhatsapp(phoneNumber);
-    } else if (this.instance.qrcode.code && !this.instance.qrcode.pairingCode) {
+    } else if (this.instance.qrcode.code) {
       await this.requestPairingCodeFromClient(phoneNumber);
     }
 
