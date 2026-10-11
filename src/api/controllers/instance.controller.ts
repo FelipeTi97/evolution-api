@@ -390,7 +390,15 @@ export class InstanceController {
     }
   }
 
-  public async requestPairingCode({ instanceName }: InstanceDto, { phone }: InstancePairDto) {
+  public async requestPairingCode(
+    { instanceName: authenticatedInstanceName }: InstanceDto,
+    { phone, instanceName: requestedInstanceName }: InstancePairDto,
+  ) {
+    const instanceName = authenticatedInstanceName || requestedInstanceName;
+    if (!instanceName) {
+      throw new BadRequestException('instanceName is required');
+    }
+
     const instance = this.waMonitor.waInstances[instanceName];
     if (!instance) {
       throw new BadRequestException(`The "${instanceName}" instance does not exist`);

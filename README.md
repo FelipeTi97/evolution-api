@@ -48,7 +48,7 @@ Evolution API supports multiple connection types to WhatsApp:
 ### WhatsApp API — Baileys
 A free API based on WhatsApp Web, leveraging the [Baileys library](https://github.com/WhiskeySockets/Baileys). Suitable for multi-service chats, service bots, and WhatsApp-integrated systems. Note: this method relies on the web version of WhatsApp and may have limitations compared to official APIs.
 
-To connect by phone number instead of scanning a QR code, first create the instance, then request a pairing code for its existing instance token:
+To connect by phone number instead of scanning a QR code, first create the instance, then request a pairing code for the existing Baileys instance. With the instance token, send only the phone number:
 
 ```bash
 curl -X POST "https://YOUR_EVOLUTION_URL/instance/pair" \
@@ -57,7 +57,16 @@ curl -X POST "https://YOUR_EVOLUTION_URL/instance/pair" \
   -d '{"phone":"5511999999999"}'
 ```
 
-The response includes `pairingCode` (and the `PairingCode` alias for compatibility). Enter it in WhatsApp under **Linked devices → Link a device → Link with phone number**. This endpoint does not create or delete instances; use the instance token for the already-created Baileys instance. QR-code connection remains available through the existing connect endpoint.
+When using the global API key, include the instance name in the request body:
+
+```bash
+curl -X POST "https://YOUR_EVOLUTION_URL/instance/pair" \
+  -H "apikey: YOUR_GLOBAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName":"YOUR_INSTANCE_NAME","phone":"5511999999999"}'
+```
+
+The response includes `pairingCode` (and the `PairingCode` alias for compatibility). Enter it in WhatsApp under **Linked devices → Link a device → Link with phone number**. This endpoint does not create or delete instances. QR-code connection remains available through the existing connect endpoint.
 
 ### WhatsApp Cloud API
 The official API provided by Meta. Designed for businesses with higher messaging volumes and stronger integration support, including end-to-end encryption, advanced analytics, and customer service tools. Requires compliance with Meta's policies and may incur per-message costs.
