@@ -27,6 +27,15 @@ export async function instanceExistsGuard(req: Request, _: Response, next: NextF
     return next();
   }
 
+  const isPairRequest = req.originalUrl.split('?')[0].replace(/\/$/, '').endsWith('/instance/pair');
+  if (isPairRequest && !req.params?.instanceName) {
+    if (req.body?.instanceName) {
+      req.params.instanceName = req.body.instanceName;
+    } else {
+      return next();
+    }
+  }
+
   const param = req.params as unknown as InstanceDto;
   if (!param?.instanceName) {
     throw new BadRequestException('"instanceName" not provided.');

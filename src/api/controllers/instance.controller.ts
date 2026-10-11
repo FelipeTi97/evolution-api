@@ -1,4 +1,4 @@
-import { InstanceDto, SetPresenceDto } from '@api/dto/instance.dto';
+import { InstanceDto, InstancePairDto, SetPresenceDto } from '@api/dto/instance.dto';
 import { ChatwootService } from '@api/integrations/chatbot/chatwoot/services/chatwoot.service';
 import { ProviderFiles } from '@api/provider/sessions';
 import { PrismaRepository } from '@api/repository/repository.service';
@@ -388,6 +388,24 @@ export class InstanceController {
       this.logger.error(error);
       return { error: true, message: error.toString() };
     }
+  }
+
+  public async requestPairingCode({ instanceName }: InstanceDto, { phone }: InstancePairDto) {
+    const instance = this.waMonitor.waInstances[instanceName];
+    if (!instance) {
+      throw new BadRequestException(`The "${instanceName}" instance does not exist`);
+    }
+
+    if (instance.integration !== Integration.WHATSAPP_BAILEYS) {
+      throw new BadRequestException('Pairing by phone number is only supported for Baileys instances');
+    }
+
+    const number = phone.replace(/\D/g, '');
+    if (!/^[1-9]\d{7,14}$/.test(number)) {
+      throw new BadRequestException('phone must be a valid international phone number with 8 to 15 digits');
+    }
+
+    return instance.requestPairingCode(number);
   }
 
   public async connectionState({ instanceName }: InstanceDto) {

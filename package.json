@@ -51,14 +51,6 @@
     "url": "https://github.com/EvolutionAPI/evolution-api/issues"
   },
   "homepage": "https://github.com/EvolutionAPI/evolution-api#readme",
-  "lint-staged": {
-    "src/**/*.{ts,js}": [
-      "eslint --fix"
-    ],
-    "src/**/*.ts": [
-      "sh -c 'tsc --noEmit'"
-    ]
-  },
   "config": {
     "commitizen": {
       "path": "cz-conventional-changelog"

@@ -260,6 +260,8 @@ export class BaileysStartupService extends ChannelStartupService {
 
   public phoneNumber: string;
 
+  private pairingCodeRequest: { phoneNumber: string; promise: Promise<string> } | null = null;
+
   public get connectionStatus() {
     return this.stateConnection;
   }
@@ -374,7 +376,7 @@ export class BaileysStartupService extends ChannelStartupService {
 
       if (this.phoneNumber) {
         await delay(1000);
-        this.instance.qrcode.pairingCode = await this.client.requestPairingCode(this.phoneNumber);
+        await this.requestPairingCodeFromClient(this.phoneNumber);
       } else {
         this.instance.qrcode.pairingCode = null;
       }
@@ -737,6 +739,73 @@ export class BaileysStartupService extends ChannelStartupService {
       this.logger.error(error);
       throw new InternalServerErrorException(error?.toString());
     }
+  }
+
+  private async requestPairingCodeFromClient(phoneNumber: string): Promise<string> {
+    if (!this.client) {
+      throw new BadRequestException('WhatsApp connection is not ready to request a pairing code');
+    }
+
+    if (this.pairingCodeRequest) {
+      if (this.pairingCodeRequest.phoneNumber === phoneNumber) {
+        return this.pairingCodeRequest.promise;
+      }
+      throw new BadRequestException('Another pairing code request is already in progress');
+    }
+
+    const request = this.client.requestPairingCode(phoneNumber);
+    this.pairingCodeRequest = { phoneNumber, promise: request };
+
+    try {
+      const pairingCode = await request;
+      this.instance.qrcode.pairingCode = pairingCode;
+      return pairingCode;
+    } finally {
+      if (this.pairingCodeRequest?.promise === request) {
+        this.pairingCodeRequest = null;
+      }
+    }
+  }
+
+  public async requestPairingCode(phoneNumber: string): Promise<wa.QrCode> {
+    if (this.connectionStatus.state === 'open') {
+      throw new BadRequestException('The instance is already connected');
+    }
+
+    if (this.connectionStatus.state !== 'close' && this.connectionStatus.state !== 'connecting') {
+      throw new BadRequestException(
+        `Cannot request a pairing code while the instance is ${this.connectionStatus.state}`,
+      );
+    }
+
+    const needsConnection = this.connectionStatus.state === 'close';
+    if (needsConnection || this.phoneNumber !== phoneNumber) {
+      this.phoneNumber = phoneNumber;
+      this.instance.qrcode.pairingCode = null;
+    }
+
+    if (needsConnection) {
+      this.instance.qrcode.code = undefined;
+      this.instance.qrcode.base64 = undefined;
+      await this.connectToWhatsapp(phoneNumber);
+    } else if (this.instance.qrcode.code && !this.instance.qrcode.pairingCode) {
+      await this.requestPairingCodeFromClient(phoneNumber);
+    }
+
+    const timeoutAt = Date.now() + 20_000;
+    const isConnected = () => this.connectionStatus.state === 'open';
+    while (!this.instance.qrcode.pairingCode && Date.now() < timeoutAt) {
+      if (isConnected()) {
+        throw new BadRequestException('The instance connected before a pairing code was generated');
+      }
+      await delay(250);
+    }
+
+    if (!this.instance.qrcode.pairingCode) {
+      throw new BadRequestException('Failed to generate a pairing code; reconnect the instance and try again');
+    }
+
+    return this.qrCode;
   }
 
   public async reloadConnection(): Promise<WASocket> {

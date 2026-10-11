@@ -54,6 +54,12 @@ export class InstanceDto extends IntegrationDto {
   chatwootUrl?: string;
 }
 
+export class InstancePairDto {
+  phone: string;
+  instanceName?: string;
+  subscribe?: string[];
+}
+
 export class SetPresenceDto {
   presence: WAPresence;
 }

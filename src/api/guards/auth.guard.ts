@@ -34,6 +34,17 @@ async function apikey(req: Request, _: Response, next: NextFunction) {
         return next();
       }
     } else {
+      const isPairRequest = req.originalUrl.split('?')[0].replace(/\/$/, '').endsWith('/instance/pair');
+      if (isPairRequest) {
+        const instance = await prismaRepository.instance.findFirst({
+          where: { token: key },
+        });
+        if (instance) {
+          req.params.instanceName = instance.name;
+          return next();
+        }
+      }
+
       if (req.originalUrl.includes('/instance/fetchInstances') && db.SAVE_DATA.INSTANCE) {
         const instanceByKey = await prismaRepository.instance.findFirst({
           where: { token: key },

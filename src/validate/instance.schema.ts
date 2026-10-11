@@ -227,3 +227,17 @@ export const presenceOnlySchema: JSONSchema7 = {
   },
   required: ['presence'],
 };
+
+export const instancePairSchema: JSONSchema7 = {
+  $id: v4(),
+  type: 'object',
+  properties: {
+    phone: { type: 'string', minLength: 1 },
+    instanceName: { type: 'string', minLength: 1 },
+    subscribe: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+  },
+  required: ['phone'],
+};

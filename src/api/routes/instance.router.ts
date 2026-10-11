@@ -1,8 +1,8 @@
 import { RouterBroker } from '@api/abstract/abstract.router';
-import { InstanceDto, SetPresenceDto } from '@api/dto/instance.dto';
+import { InstanceDto, InstancePairDto, SetPresenceDto } from '@api/dto/instance.dto';
 import { instanceController } from '@api/server.module';
 import { ConfigService } from '@config/env.config';
-import { instanceSchema, presenceOnlySchema } from '@validate/validate.schema';
+import { instancePairSchema, instanceSchema, presenceOnlySchema } from '@validate/validate.schema';
 import { RequestHandler, Router } from 'express';
 
 import { HttpStatus } from './index.router';
@@ -14,6 +14,19 @@ export class InstanceRouter extends RouterBroker {
   ) {
     super();
     this.router
+      .post('/pair', ...guards, async (req, res) => {
+        const response = await this.dataValidate<InstancePairDto>({
+          request: req,
+          schema: instancePairSchema,
+          ClassRef: InstancePairDto,
+          execute: (instance, data) => instanceController.requestPairingCode(instance, data),
+        });
+
+        return res.status(HttpStatus.OK).json({
+          ...response,
+          PairingCode: response.pairingCode,
+        });
+      })
       .post('/create', ...guards, async (req, res) => {
         const response = await this.dataValidate<InstanceDto>({
           request: req,

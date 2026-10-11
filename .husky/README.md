@@ -19,16 +19,13 @@ Este projeto usa [Husky](https://typicode.github.io/husky/) para automatizar ver
 Configurado no `package.json`:
 
 ```json
-"lint-staged": {
-  "src/**/*.{ts,js}": [
-    "eslint --fix",
-    "git add"
-  ],
-  "src/**/*.ts": [
-    "npm run build"
-  ]
-}
+module.exports = {
+  'src/**/*.{ts,js}': ['eslint --fix'],
+  'src/**/*.ts': [() => 'tsc --noEmit'],
+};
 ```
+
+O type-check usa uma função de configuração para impedir que o `lint-staged` acrescente os caminhos dos arquivos ao comando global do TypeScript. Não é necessário iniciar `sh`/`bash`, mantendo o hook compatível com Windows.
 
 ## Como funciona
 
