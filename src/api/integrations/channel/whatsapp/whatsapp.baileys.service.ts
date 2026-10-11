@@ -374,11 +374,13 @@ export class BaileysStartupService extends ChannelStartupService {
         color: { light: '#ffffff', dark: color },
       };
 
-      if (this.phoneNumber) {
+      if (this.phoneNumber && !this.instance.qrcode.pairingCode) {
         await delay(1000);
         await this.requestPairingCodeFromClient(this.phoneNumber);
       } else {
-        this.instance.qrcode.pairingCode = null;
+        if (!this.phoneNumber) {
+          this.instance.qrcode.pairingCode = null;
+        }
       }
 
       qrcode.toDataURL(qr, optsQrcode, (error, base64) => {
