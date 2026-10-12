@@ -434,10 +434,14 @@ export class WAMonitoringService {
 
         this.waInstances[instanceName].instance.qrcode = { count: 0 };
         this.waInstances[instanceName].stateConnection.state = 'close';
+        await this.prismaRepository.instance.update({
+          where: { id: this.waInstances[instanceName].instance.id },
+          data: { connectionStatus: 'close' },
+        });
       } catch (error) {
         this.logger.error({
           localError: 'noConnection',
-          warn: 'Error deleting instance from memory.',
+          warn: 'Error marking instance as disconnected after QR limit.',
           error,
         });
       } finally {
